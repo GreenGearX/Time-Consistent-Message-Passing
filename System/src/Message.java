@@ -1,10 +1,13 @@
 public class Message implements java.io.Serializable {
     String message;
     int timeStamp;
+    int passerId;
 
-    Message(String message, int timeStamp) {
+
+    Message(String message, int timeStamp, int passerId) {
         this.message = message;
         this.timeStamp = timeStamp;
+        this.passerId = passerId;
     }
 
     public String getMessage(){
@@ -13,5 +16,9 @@ public class Message implements java.io.Serializable {
 
     public int getTimeStamp(){
         return timeStamp;
+    }
+
+    public int getPasserId(){
+        return passerId;
     }
 }

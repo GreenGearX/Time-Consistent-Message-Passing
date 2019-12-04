@@ -14,13 +14,18 @@ public class Client {
     }
 
     public void init() throws IOException {
-        socket = new Socket(host, port);
+        while(true){
+            try {
+                socket = new Socket(host, port);
+                break;
+            } catch (Exception e){}
+        }
         OutputStream output = new PrintStream(socket.getOutputStream());
         ObjectOutputStream object_output = new ObjectOutputStream(output);
 //        while(true) {
 //            output.println("hahahahaha");
 //        }
-        Message mes = new Message("hello", 999);
+        Message mes = new Message("hello", 999, 8);
         object_output.writeObject(mes);
     }
 
