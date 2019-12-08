@@ -1,13 +1,14 @@
-public class Message {
+public class Message implements java.io.Serializable {
+
     String message;
     int timeStamp;
-    int passerId;
+    int destination;
 
 
-    Message(String message, int timeStamp, int passerId) {
+    Message(String message, int timeStamp, int destination) {
         this.message = message;
         this.timeStamp = timeStamp;
-        this.passerId = passerId;
+        this.destination = destination;
     }
 
     public String getMessage(){
@@ -19,6 +20,10 @@ public class Message {
     }
 
     public int getPasserId(){
-        return passerId;
+        return destination;
+    }
+
+    public Message clone(){
+        return new Message(message,timeStamp,destination);
     }
 }

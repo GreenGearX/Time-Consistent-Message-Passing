@@ -20,6 +20,9 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
     static TestServerIntf server2;
     static AtomicBoolean currentTimestampChange = new AtomicBoolean(false);
     static NodeInfo[] nodes;
+    static Queue<Message> messages = new LinkedList<>();
+    static int sentTimestamp = -1;
+
 
     public RmiServer() throws RemoteException {
         super(0); // required to avoid the 'rmic' step, see below
@@ -30,13 +33,22 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
     }
 
     public void sendMessage(Message message) throws RemoteException {
-        
+        if(message.getTimeStamp() == sentTimestamp){
+            nodes[id].currentTimestampChange.set(true);
+        } else {
+            if (isAtDestination(message.destination)) {
+                System.out.println(message.getMessage());
+                messages.add(message.clone());
+            } else {
+                messages.add(message.clone());
+            }
+        }
+
     }
 
 
-
     public void sendTimestamp(int id, int currentTimestamp, boolean done) throws RemoteException {
-        if(!nodes[id].done.get() && done){
+        if (!nodes[id].done.get() && done) {
             nodes[id].done.set(true);
             nodes[id].currentTimestampChange.set(true);
         }
@@ -47,7 +59,6 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
     }
 
     public static void main(String args[]) throws Exception {
-
 
 
         Queue<Integer> q = new LinkedList<>();
@@ -62,7 +73,7 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
             nodes[i] = new NodeInfo();
         }
 
-        for (int i = 0; i < 100000; i++) {
+        for (int i = 0; i < 100; i++) {
             if (id == rand.nextInt(numberOfNodes + 20)) {
                 q.add(i);
                 System.out.println("added: " + i);
@@ -108,10 +119,13 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
 
         while (true) {
             if (q.size() > 0 && minTimestamp(nodes) == q.peek()) {
-                server2.getTimestamp(q.remove());
+
+                sentTimestamp = q.peek();
+                server1.sendMessage(new Message("hey" + q.peek(), q.peek(), q.remove()));
+//                server2.getTimestamp(q.remove());
                 if (q.size() > 0) {
                     nodes[id].currentTimestamp.set(q.peek());
-                    server1.sendTimestamp(id, nodes[id].currentTimestamp.get(), nodes[id].done.get());
+//                    server1.sendTimestamp(id, nodes[id].currentTimestamp.get(), nodes[id].done.get());
                 }
 
             } else if (q.size() == 0) {
@@ -123,6 +137,9 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
                     nodes[i].currentTimestampChange.set(false);
                     server1.sendTimestamp(i, nodes[i].currentTimestamp.get(), nodes[id].done.get());
                 }
+            }
+            if(messages.size()> 0){
+                server1.sendMessage(messages.remove());
             }
         }
 
@@ -137,5 +154,9 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
         }
 
         return result;
+    }
+
+    static boolean isAtDestination(int destination) {
+        return destination % numberOfNodes == id;
     }
 }
