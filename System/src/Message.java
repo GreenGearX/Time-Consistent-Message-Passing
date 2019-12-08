@@ -1,4 +1,4 @@
-public class Message implements java.io.Serializable {
+public class Message {
     String message;
     int timeStamp;
     int passerId;
