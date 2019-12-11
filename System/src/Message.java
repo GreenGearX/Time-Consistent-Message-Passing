@@ -1,26 +1,15 @@
-public class Message implements java.io.Serializable {
+import java.io.Serializable;
 
-    String message;
-    int timeStamp;
-    int destination;
+public class Message implements Serializable {
 
+    public String message;
+    public int timeStamp;
+    public int destination;
 
     Message(String message, int timeStamp, int destination) {
         this.message = message;
         this.timeStamp = timeStamp;
         this.destination = destination;
-    }
-
-    public String getMessage(){
-        return message;
-    }
-
-    public int getTimeStamp(){
-        return timeStamp;
-    }
-
-    public int getPasserId(){
-        return destination;
     }
 
     public Message clone(){

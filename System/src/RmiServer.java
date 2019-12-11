@@ -1,162 +1,206 @@
-import java.net.Socket;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.rmi.registry.*;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.Random;
 
 public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
-    public static final String MESSAGE = "Hello World";
-    //    static int currentTimeStamp = 0;
-//    static AtomicInteger currentTimeStamp = new AtomicInteger(0);
+    static Queue<Message> messages = new LinkedList<>();
     static int nextNodeId;
     static int id;
     static int numberOfNodes;
-    static RmiServerIntf server1;
-    static TestServerIntf server2;
-    static AtomicBoolean currentTimestampChange = new AtomicBoolean(false);
+    static int numberOfMessages;
+    static RmiServerIntf nextNode;
+    static TestServerIntf testServer;
     static NodeInfo[] nodes;
-    static Queue<Message> messages = new LinkedList<>();
-    static int sentTimestamp = -1;
+    static ConcurrentLinkedQueue<Envelope> inbox = new ConcurrentLinkedQueue<>();
+    static ConcurrentLinkedQueue<Envelope> outbox = new ConcurrentLinkedQueue<>();
+    static int send_messages = 0;
+    static int received_confirmations = 0;
+    static String testServerIP;
+    static String nextNodeIP;
 
 
     public RmiServer() throws RemoteException {
         super(0); // required to avoid the 'rmic' step, see below
     }
 
-    public String getMessage() {
-        return MESSAGE;
+    public void sendEnvelope(Envelope envelope) throws RemoteException {
+        inbox.add(envelope.clone());
     }
 
-    public void sendMessage(Message message) throws RemoteException {
-        if(message.getTimeStamp() == sentTimestamp){
-            nodes[id].currentTimestampChange.set(true);
+    static public void processEnvelope(Envelope envelope) throws RemoteException {
+        switch (envelope.type) {
+            case Envelope.MESSAGE:
+                handleMessage(envelope);
+                break;
+            case Envelope.CONFIRMATION:
+                handleConfirmation(envelope);
+                break;
+            case Envelope.UPDATE:
+                handleUpdate(envelope);
+                break;
+        }
+    }
+
+    static public void handleConfirmation(Envelope envelope) throws RemoteException{
+        if (envelope.destination == id) { // if the confirmation reaches its destination, update the timestamp to the next message
+            updateTimestamp();
+            received_confirmations++;
         } else {
-            if (isAtDestination(message.destination)) {
-                System.out.println(message.getMessage());
-                messages.add(message.clone());
-            } else {
-                messages.add(message.clone());
-            }
-        }
-
-    }
-
-
-    public void sendTimestamp(int id, int currentTimestamp, boolean done) throws RemoteException {
-        if (!nodes[id].done.get() && done) {
-            nodes[id].done.set(true);
-            nodes[id].currentTimestampChange.set(true);
-        }
-        if (nodes[id].currentTimestamp.get() < currentTimestamp) {
-            nodes[id].currentTimestamp.set(currentTimestamp);
-            nodes[id].currentTimestampChange.set(true);
+            //otherwise, relay the confirmation
+            outbox.add(envelope.clone());
         }
     }
+
+    static public void handleMessage(Envelope envelope) throws RemoteException {
+        if (envelope.destination == id) { // if the message has arrived at the destination, send a confirmation back
+            processMessage(envelope.message);
+            outbox.add(new Envelope(null, envelope.senderInfo.id, envelope.senderInfo.clone(), Envelope.CONFIRMATION));
+        } else {
+            // otherwise, relay the message to the next node
+            outbox.add(envelope.clone());
+        }
+    }
+
+    static public void handleUpdate(Envelope envelope) {
+        if (envelope.senderInfo.id == id) { // if the update has arrived back at the node which sent it, ignore it
+            received_confirmations++;
+        } else {
+            // otherwise, change info on the sender and relay the update
+            nodes[envelope.senderInfo.id].nextTimestamp = envelope.senderInfo.nextTimestamp;
+            nodes[envelope.senderInfo.id].done = envelope.senderInfo.done;
+
+            outbox.add(envelope.clone());
+        }
+    }
+
+    static public void processMessage(Message message) throws RemoteException {
+        testServer.getTimestamp(message.timeStamp);
+    }
+
 
     public static void main(String args[]) throws Exception {
 
-
-        Queue<Integer> q = new LinkedList<>();
-
         id = Integer.parseInt(args[0]);
-        numberOfNodes = Integer.parseInt(args[2]);
-        Random rand = new Random(999);
+        numberOfNodes = Integer.parseInt(args[1]);
+        numberOfMessages = Integer.parseInt(args[2]);
+        nextNodeId = (id + 1) % numberOfNodes;
 
+        Random rand = new Random(999);
         nodes = new NodeInfo[numberOfNodes];
 
+        testServerIP = args[4];
+        nextNodeIP = args[3];
+
         for (int i = 0; i < numberOfNodes; i++) {
-            nodes[i] = new NodeInfo();
+            nodes[i] = new NodeInfo(i);
         }
 
-        for (int i = 0; i < 100; i++) {
+        // generate messages
+        {int i = 0;
+        while(messages.size() < numberOfMessages / numberOfNodes) {
+
             if (id == rand.nextInt(numberOfNodes + 20)) {
-                q.add(i);
-                System.out.println("added: " + i);
-            }
-        }
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-        System.out.println("RMI server started");
+                messages.add(new Message("test", i, i));
+                System.out.println(i);
 
+            }
+            i++;
+        }}
+
+
+        // listen for previous node
         try { //special exception handler for registry creation
-            LocateRegistry.createRegistry(1099);
-            System.out.println("java RMI registry created.");
+            LocateRegistry.createRegistry(1099 + id);
         } catch (RemoteException e) {
             //do nothing, error means registry already exists
-            System.out.println("java RMI registry already exists.");
         }
 
         //Instantiate RmiServer
         RmiServer server = new RmiServer();
-
-        // Bind this object instance to the name "RmiServer"
         Naming.rebind("//localhost/" + args[0], server);
-        System.out.println("PeerServer bound in registry");
 
-
+        // connect to next node
         while (true) {
             try {
-                server1 = (RmiServerIntf) Naming.lookup("//localhost/" + args[1]);
+                nextNode = (RmiServerIntf) Naming.lookup("//localhost/" + nextNodeId);
                 break;
             } catch (Exception e) {
             }
         }
 
+        // connect to test server
         while (true) {
             try {
-                server2 = (TestServerIntf) Naming.lookup("//localhost/" + "test");
+                testServer = (TestServerIntf) Naming.lookup("//localhost/" + "test");
                 break;
             } catch (Exception e) {
             }
         }
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-        nodes[id].currentTimestamp.set(q.peek());
-        server1.sendTimestamp(id, nodes[id].currentTimestamp.get(), nodes[id].done.get());
+
+        // broadcast initial nextTimeStamp
+        updateTimestamp();
 
         while (true) {
-            if (q.size() > 0 && minTimestamp(nodes) == q.peek()) {
 
-                sentTimestamp = q.peek();
-                server1.sendMessage(new Message("hey" + q.peek(), q.peek(), q.remove()));
-//                server2.getTimestamp(q.remove());
-                if (q.size() > 0) {
-                    nodes[id].currentTimestamp.set(q.peek());
-//                    server1.sendTimestamp(id, nodes[id].currentTimestamp.get(), nodes[id].done.get());
-                }
+            while (inbox.size() > 0) {
+                processEnvelope(inbox.remove());
+            }
 
-            } else if (q.size() == 0) {
-                nodes[id].done.set(true);
-                server1.sendTimestamp(id, nodes[id].currentTimestamp.get(), nodes[id].done.get());
+            while (outbox.size() > 0) {
+                nextNode.sendEnvelope(outbox.remove());
             }
-            for (int i = 0; i < numberOfNodes; i++) {
-                if (nodes[i].currentTimestampChange.get()) {
-                    nodes[i].currentTimestampChange.set(false);
-                    server1.sendTimestamp(i, nodes[i].currentTimestamp.get(), nodes[id].done.get());
-                }
+
+            if (messages.size() > 0 && !nodes[id].done && nodes[id].nextTimestamp == minTimestamp(nodes) && nodes[id].nextTimestamp == messages.peek().timeStamp) {
+                outbox.add(new Envelope(messages.peek(), nodeDestination(messages.remove().destination), nodes[id].clone(), Envelope.MESSAGE));
+                send_messages++;
             }
-            if(messages.size()> 0){
-                server1.sendMessage(messages.remove());
+
+            if (allNodesDone(nodes) && inbox.size() == 0 && outbox.size() == 0 && send_messages == received_confirmations) {
+                System.exit(0);
             }
+
         }
 
+    }
+
+    static void updateTimestamp() throws RemoteException{
+        if (messages.size() > 0) { // if there is a message in the queue, set the next timestamp
+            nodes[id].nextTimestamp = messages.peek().timeStamp;
+        } else { // otherwise, the node is done
+            testServer.updateDone();
+            nodes[id].done = true;
+        }
+
+        outbox.add(new Envelope(null, id, nodes[id].clone(), Envelope.UPDATE));
+        send_messages++;
     }
 
     static int minTimestamp(NodeInfo[] nodes) {
-        int result = nodes[id].currentTimestamp.get();
+        int result = nodes[id].nextTimestamp;
         for (int i = 0; i < nodes.length; i++) {
-            if (!nodes[i].done.get()) {
-                result = Integer.min(result, nodes[i].currentTimestamp.get());
+            if (!nodes[i].done) {
+                result = Integer.min(result, nodes[i].nextTimestamp);
             }
         }
-
         return result;
     }
 
-    static boolean isAtDestination(int destination) {
-        return destination % numberOfNodes == id;
+    static int nodeDestination(int destination) {
+        return destination % numberOfNodes;
     }
+
+    static boolean allNodesDone(NodeInfo[] nodes) {
+        boolean allDone = true;
+
+        for (int i = 0; i < nodes.length; i++) {
+            allDone = allDone && nodes[i].done;
+        }
+        return allDone;
+    }
+
 }
