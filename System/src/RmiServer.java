@@ -127,7 +127,7 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
         // connect to next node
         while (true) {
             try {
-                nextNode = (RmiServerIntf) Naming.lookup("//localhost/" + nextNodeId);
+                nextNode = (RmiServerIntf) Naming.lookup("//" + nextNodeIP + "/" + nextNodeId);
                 break;
             } catch (Exception e) {
             }
@@ -136,7 +136,7 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
         // connect to test server
         while (true) {
             try {
-                testServer = (TestServerIntf) Naming.lookup("//localhost/" + "test");
+                testServer = (TestServerIntf) Naming.lookup("//"+ testServerIP +"/" + "test");
                 break;
             } catch (Exception e) {
             }
