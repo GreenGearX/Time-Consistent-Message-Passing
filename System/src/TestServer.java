@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TestServer extends UnicastRemoteObject implements TestServerIntf {
 
     static AtomicInteger nodesWorking;
+    static String ownIP;
 
     public void getTimestamp(int timestamp) throws RemoteException{
         System.out.println(timestamp);
@@ -31,9 +32,10 @@ public class TestServer extends UnicastRemoteObject implements TestServerIntf {
             //do nothing, error means registry already exists
         }
 
+        ownIP = args[1];
 
         TestServer server = new TestServer();
-        Naming.rebind("//localhost/" + "test", server);
+        Naming.rebind("//" + ownIP + "/" + "test", server);
 
         while(nodesWorking.get() > 0){
             Thread.sleep(500);

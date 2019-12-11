@@ -22,6 +22,7 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
     static int received_confirmations = 0;
     static String testServerIP;
     static String nextNodeIP;
+    static String ownIP;
 
 
     public RmiServer() throws RemoteException {
@@ -95,6 +96,7 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
 
         testServerIP = args[4];
         nextNodeIP = args[3];
+        ownIP = args[5];
 
         for (int i = 0; i < numberOfNodes; i++) {
             nodes[i] = new NodeInfo(i);
@@ -122,7 +124,7 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
 
         //Instantiate RmiServer
         RmiServer server = new RmiServer();
-        Naming.rebind("//localhost/" + args[0], server);
+        Naming.rebind("//"+ ownIP+"/" + args[0], server);
 
         // connect to next node
         while (true) {
