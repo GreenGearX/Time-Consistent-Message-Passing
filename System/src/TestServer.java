@@ -34,6 +34,8 @@ public class TestServer extends UnicastRemoteObject implements TestServerIntf {
 
         ownIP = args[1];
 
+        System.setProperty("java.rmi.server.hostname", ownIP);
+
         TestServer server = new TestServer();
         Naming.rebind("//" + ownIP + "/" + "test", server);
 

@@ -107,7 +107,10 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
         while(messages.size() < numberOfMessages / numberOfNodes) {
 
             if (id == rand.nextInt(numberOfNodes + 20)) {
-                messages.add(new Message("test", i, i));
+                StringBuilder sb = new StringBuilder();
+                int someRand = rand.nextInt();
+                sb.append(String.valueOf(someRand).repeat(1000000));
+                messages.add(new Message(sb.toString(), i, i));
                 System.out.println(i);
 
             }
@@ -117,14 +120,15 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
 
         // listen for previous node
         try { //special exception handler for registry creation
-            LocateRegistry.createRegistry(1099 + id);
+            LocateRegistry.createRegistry(1099);
         } catch (RemoteException e) {
             //do nothing, error means registry already exists
         }
 
         //Instantiate RmiServer
+        System.setProperty("java.rmi.server.hostname", ownIP);
         RmiServer server = new RmiServer();
-        Naming.rebind("//"+ ownIP+"/" + args[0], server);
+        Naming.rebind("//"+ ownIP + "/" + args[0], server);
 
         // connect to next node
         while (true) {
