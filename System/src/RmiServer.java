@@ -7,6 +7,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.Random;
 
+
 public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
     static Queue<Message> messages = new LinkedList<>();
     static int nextNodeId;
@@ -107,10 +108,11 @@ public class RmiServer extends UnicastRemoteObject implements RmiServerIntf {
         while(messages.size() < numberOfMessages / numberOfNodes) {
 
             if (id == rand.nextInt(numberOfNodes + 20)) {
-                StringBuilder sb = new StringBuilder();
-                int someRand = rand.nextInt();
-                sb.append(String.valueOf(someRand).repeat(1000000));
-                messages.add(new Message(sb.toString(), i, i));
+//                StringBuilder sb = new StringBuilder();
+//                int someRand = rand.nextInt();
+//                sb.append(String.valueOf(someRand).repeat(10000));
+//                messages.add(new Message(sb.toString(), i, i));
+                messages.add(new Message("KcZC8tdeIh7tfKMQFrU3nQlamhcOkExst2BAorW5luzSArTZPL6T4KnGsxOa1yb0", i, i));
                 System.out.println(i);
 
             }
